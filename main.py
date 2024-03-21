@@ -6,8 +6,12 @@ import argparse
 
 def parse_config():
     parser = argparse.ArgumentParser(description="RAF2JPEG")
-    parser.add_argument('--input', '-i', type=str, required=True, help="input directory address") 
-    parser.add_argument('--output', '-o', type=str, required=True, help="export directory address") 
+    parser.add_argument(
+        "--input", "-i", type=str, required=True, help="input directory address"
+    )
+    parser.add_argument(
+        "--output", "-o", type=str, required=True, help="export directory address"
+    )
     args = parser.parse_args()
     return args
 
@@ -15,25 +19,29 @@ def parse_config():
 class RAFHeader:
     # .RAF basic information
     def __init__(self, filename):
-        with open(filename, 'rb') as f:
-            self.type_string = struct.unpack('>16s', f.read(16))[0]
-            self.format_ver = struct.unpack('>4s', f.read(4))[0]
-            self.camera_id = struct.unpack('>8s', f.read(8))[0]
-            self.camera_str = struct.unpack('>32s', f.read(32))[0].decode("utf_8","ignore")
-            self.offset_ver = struct.unpack('>4s', f.read(4))[0]
-            self.offset_unk = struct.unpack('>20s', f.read(20))[0].decode("utf_8","ignore")
-            self.offset_jpg_offset = struct.unpack('>1i', f.read(4))[0]
-            self.offset_jpg_length = struct.unpack('>1i', f.read(4))[0]
-            self.offset_CFA_header_offset = struct.unpack('>1i', f.read(4))[0]
-            self.offset_CFA_header_length = struct.unpack('>1i', f.read(4))[0]
-            self.offset_CFA_offset = struct.unpack('>1i', f.read(4))[0]
-            self.offset_CFA_length = struct.unpack('>1i', f.read(4))[0]
+        with open(filename, "rb") as f:
+            self.type_string = struct.unpack(">16s", f.read(16))[0]
+            self.format_ver = struct.unpack(">4s", f.read(4))[0]
+            self.camera_id = struct.unpack(">8s", f.read(8))[0]
+            self.camera_str = struct.unpack(">32s", f.read(32))[0].decode(
+                "utf_8", "ignore"
+            )
+            self.offset_ver = struct.unpack(">4s", f.read(4))[0]
+            self.offset_unk = struct.unpack(">20s", f.read(20))[0].decode(
+                "utf_8", "ignore"
+            )
+            self.offset_jpg_offset = struct.unpack(">1i", f.read(4))[0]
+            self.offset_jpg_length = struct.unpack(">1i", f.read(4))[0]
+            self.offset_CFA_header_offset = struct.unpack(">1i", f.read(4))[0]
+            self.offset_CFA_header_length = struct.unpack(">1i", f.read(4))[0]
+            self.offset_CFA_offset = struct.unpack(">1i", f.read(4))[0]
+            self.offset_CFA_length = struct.unpack(">1i", f.read(4))[0]
 
 
 class JPEG:
     # Exif JFIF with thumbnail + preview
     def __init__(self, filename, offset, length):
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             f.seek(offset)
             self.bin = f.read(length)
 
@@ -43,22 +51,24 @@ class JPEG:
 
 
 class CFA:
-    def __init__(self, filename, header_offset, header_length, data_offset, data_length):
+    def __init__(
+        self, filename, header_offset, header_length, data_offset, data_length
+    ):
         self.filename = filename
         self.data_offset = data_offset
         self.data_length = data_length
         self.records = []
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             f.seek(header_offset)
-            self.count = struct.unpack('>1i', f.read(4))[0]
+            self.count = struct.unpack(">1i", f.read(4))[0]
             for record in range(self.count):
-                tag = struct.unpack('>1H', f.read(2))[0]
-                size = struct.unpack('>1H', f.read(2))[0]
+                tag = struct.unpack(">1H", f.read(2))[0]
+                size = struct.unpack(">1H", f.read(2))[0]
                 self.records.append({"id": tag, "size": size, "data": f.read(size)})
             pass
 
     def unpack(self):
-        with open(self.filename, 'rb') as f:
+        with open(self.filename, "rb") as f:
             f.seek(self.data_offset)
             # todo
 
@@ -67,9 +77,16 @@ class RAF:
     def __init__(self, filename):
         self.filename = filename
         self.header = RAFHeader(filename)
-        self.jpg = JPEG(filename, self.header.offset_jpg_offset, self.header.offset_jpg_length)
-        self.CFA = CFA(filename, self.header.offset_CFA_header_offset, self.header.offset_CFA_header_length,
-                       self.header.offset_CFA_offset, self.header.offset_CFA_length)
+        self.jpg = JPEG(
+            filename, self.header.offset_jpg_offset, self.header.offset_jpg_length
+        )
+        self.CFA = CFA(
+            filename,
+            self.header.offset_CFA_header_offset,
+            self.header.offset_CFA_header_length,
+            self.header.offset_CFA_offset,
+            self.header.offset_CFA_length,
+        )
 
     def __export_exif(self, path):
         jpg_bin = self.jpg.bin
@@ -84,32 +101,39 @@ class RAF:
         # todo
 
     def export(self, path, suffix):
-        eval("self._RAF__export_"+suffix.lower()+"('"+path+'.'+suffix+"')")
+        eval("self._RAF__export_" + suffix.lower() + "('" + path + "." + suffix + "')")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_config()
     export_path = args.output
     import_path = args.input
-    if not os.path.exists(export_path):
-        os.mkdir(export_path)
-    file_lst = os.listdir(import_path)
-    res_string = ""
-    for i, name in enumerate(file_lst):
-        if name.split(".")[-1] == "RAF":
-            try:
-                file_path = import_path + name
-                obj = RAF(file_path)
-                export_file_path = export_path + name.split(".")[0]
-                obj.export(export_file_path, 'jpg')
-                print("success:", file_path)
-                res_string = res_string + "success:" + file_path + "\n"
-            except Exception as e:
-                print("fail:", file_path)
-                res_string = res_string + "fail:" + file_path + "\n"
-                print(e)
+    print(f"输入文件夹是:{export_path}\n输出文件夹是:{import_path}\n")
+    print(f"")
+    inflag = input("请输入 'y' 继续执行，默认是 'y' ，否则退出：") or "y"
+    if inflag.upper() == "Y":
+        if not os.path.exists(export_path):
+            os.mkdir(export_path)
+        file_lst = os.listdir(import_path)
+        res_string = []
+        for i, name in enumerate(file_lst):
+            if name.split(".")[-1] == "RAF":
+                try:
+                    file_path = os.path.join(import_path, name)
+                    obj = RAF(file_path)
+                    export_file_path = os.path.join(export_path, name.split(".")[0])
+                    obj.export(export_file_path, "jpg")
+                    print("success:", file_path)
+                    res_string.append("success:" + file_path + "\n")
+                except Exception as e:
+                    print("fail:", file_path)
+                    res_string.append("fail:" + file_path + "\n")
+                    print(e)
 
-    with open(export_path + "res.txt", "w+") as f:
-       f.write(res_string) 
-    pass
-
+        log_path = os.path.join(export_path, "res.log")
+        with open(log_path, "w+") as f:
+            print(f"日志文件在:{log_path}")
+            for res in res_string:
+                f.write(res)
+    else:
+        print("退出程序...")
